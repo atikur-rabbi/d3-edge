@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+
+    <div class="grid-container"></div>
+
+        <div class="grid-item1" id="map"></div>
+
+        <div class="grid-item2">
+            <script>
+            // DATATABLE CODE HERE
+            </script>
+        </div>
+        <div class="grid-item3" id="my_plot">
+            <script>
+            // D3 PLOT CODE HERE
+            var data = [10, 5, 10, 12, 15];
+
+            var width = 600,
+                height = 250,
+                scaleFactor = 20,
+                barWidth = 40;
+                barGap = 2.5;
+
+            var svg = d3.select("#my_plot")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            var g = svg.append("g")
+                .attr("transform", "translate(" + 20 + "," + 20 + ")");
+
+            g.append("path")
+                .datum(data)
+                .attr("class", "line")
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("d", d3.line()
+                    .x(function(d, i) { return i * barWidth * barGap; })
+                    .y(function(d) { return d3.max(data) * scaleFactor - d * scaleFactor; })
+                );
+
+            </script>
+        </div>
+        <div class="grid-item4" id="edgeB">
+            test
+            <script>
+                var diameter = 760,
+                radius = diameter / 2;
+                innerRadius = radius - 160;
+            
+                var cluster = d3.cluster()
+                    .size([360, innerRadius]);
+                
+                var line = d3.radialLine()
+                    .curve(d3.curveBundle.beta(0.85))
+                    .radius(function(d) { return d.y; })
+                    .angle(function(d) { return d.x / 180 * Math.PI; });
+                
+                var svg = d3.select("#edgeB").append("svg")
+                    .attr("width", diameter)
+                    .attr("height", diameter)
+                .append("g")
+                    .attr("transform", "translate(" + radius + "," + radius + ")");
+                
+                var link = svg.append("g").selectAll(".link"),
+                    node = svg.append("g").selectAll(".node");
+                
+                d3.json("flare.json", function(error, classes) {
+                if (error) throw error;
+                
+                var root = packageHierarchy(classes)
+                    .sum(function(d) { return d.size; });
+                
+                cluster(root);
+                
+                link = link
+                    .data(packageImports(root.leaves()))
+                    .enter().append("path")
+                    .each(function(d) { d.source = d[0], d.target = d[d.length - 1]; })
+                    .attr("class", "link")
+                    .attr("d", line);
+                
+                node = node
+                    .data(root.leaves())
+                    .enter().append("text")
+                    .attr("class", "node")
+                    .attr("dy", "0.31em")
+                    .attr("transform", function(d) { return "rotate(" + (d.x - 90) + ")translate(" + (d.y + 8) + ",0)" + (d.x < 180 ? "" : "rotate(180)"); })
+                    .attr("text-anchor", function(d) { return d.x < 180 ? "start" : "end"; })
+                    .text(function(d) { return d.data.key; })
+                    .on("mouseover", mouseovered)
+                    .on("mouseout", mouseouted);
+                });
+                
+                function mouseovered(d) {
+                node
+                    .each(function(n) { n.target = n.source = false; });
+                
+                link
+                    .classed("link--target", function(l) { if (l.target === d) return l.source.source = true; })
+                    .classed("link--source", function(l) { if (l.source === d) return l.target.target = true; })
+                    .filter(function(l) { return l.target === d || l.source === d; })
+                    .raise();
+                
+                node
+                    .classed("node--target", function(n) { return n.target; })
+                    .classed("node--source", function(n) { return n.source; });
+                }
+                
+                function mouseouted(d) {
+                link
+                    .classed("link--target", false)
+                    .classed("link--source", false);
+                
+                node
+                    .classed("node--target", false)
+                    .classed("node--source", false);
+                }
+                
+                // Lazily construct the package hierarchy from class names.
+                function packageHierarchy(classes) {
+                var map = {};
+                
+                function find(name, data) {
+                    var node = map[name], i;
+                    if (!node) {
+                    node = map[name] = data || {name: name, children: []};
+                    if (name.length) {
+                        node.parent = find(name.substring(0, i = name.lastIndexOf(".")));
+                        node.parent.children.push(node);
+                        node.key = name.substring(i + 1);
+                    }
+                    }
+                    return node;
+                }
+                
+                classes.forEach(function(d) {
+                    find(d.name, d);
+                });
+                
+                return d3.hierarchy(map[""]);
+                }
+                
+                // Return a list of imports for the given array of nodes.
+                function packageImports(nodes) {
+                var map = {},
+                    imports = [];
+                
+                // Compute a map from name to node.
+                nodes.forEach(function(d) {
+                    map[d.data.name] = d;
+                });
+                
+                // For each import, construct a link from the source to target node.
+                nodes.forEach(function(d) {
+                    if (d.data.imports) d.data.imports.forEach(function(i) {
+                    imports.push(map[d.data.name].path(map[i]));
+                    });
+                });
+                
+                return imports;
+                }  
+            </script>     
+        </div>
+</body>
+</html>
